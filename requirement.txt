@@ -1,0 +1,15 @@
+# --- Core Scientific Computing ---
+numpy==1.24.4
+scipy==1.10.1
+pyDOE==0.3.8
+
+# --- Deep Learning (PyTorch) ---
+# Local pytorch_env (CPU build, verified):
+#   pip install torch==2.4.1+cpu --index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1+cpu
+# Server image pytorch24.03-cuda12.4 (GPU build) — uncomment and switch when needed:
+#   pip install torch==2.4.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+# torch==2.4.1+cu124
+
+# --- Visualization ---
+matplotlib==3.7.5

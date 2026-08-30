@@ -1,0 +1,40 @@
+C:\Users\ZhangQiyue\Desktop\BI_GS/
+├── Bi_GS_反问题
+│   ├── Fisher-KPP
+│   │   ├── inverse_Fisher-KPP.py
+│   │   ├── plt
+│   │   │   └── plot_Fisher-KPP_inverse_seed4_mixed_5x3.py
+│   │   └── results
+│   └── burgers
+│       ├── burgers_shock.mat
+│       ├── inverse_burgers.py
+│       ├── noise_robustness_burgers.py
+│       ├── plt
+│       │   └── plot_burgers_inverse_seed9_mixed_5x3.py
+│       └── results
+├── Bi_GS_正问题
+│   ├── 3DMMS
+│   │   ├── Forward_3DMMS.py
+│   │   ├── ablation_3DMMS_Bi_GS_PINN.py
+│   │   ├── plt
+│   │   │   ├── plot_3DMMS_seed8_compare.py
+│   │   │   ├── plot_3DMMS_seed8_error_5x4.py
+│   │   │   └── plot_3DMMS_seed8_weights.py
+│   │   └── results
+│   ├── Fisher-KPP
+│   │   ├── Forward_Fisher-KPP.py
+│   │   ├── plt
+│   │   │   ├── plot_Fisher-KPP_seed4_compare.py
+│   │   │   ├── plot_Fisher-KPP_seed4_error_5x3.py
+│   │   │   └── plot_Fisher-KPP_seed4_weights.py
+│   │   └── results
+│   └── burgers
+│       ├── Forward_burgers.py
+│       ├── burgers_shock.mat
+│       ├── plt
+│       │   ├── plot_burgers_seed5_compare.py
+│       │   ├── plot_burgers_seed5_train_heatmap_v2.py
+│       │   └── plot_burgers_seed5_weights.py
+│       └── results
+├── tree.py
+└── tree.txt
