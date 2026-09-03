@@ -1,21 +1,19 @@
-# Bi-GS-PINN: Bidirectional Gradient Surgery for Multi-Objective Physics-Informed Neural Networks
+# Bi-GS-PINN: A Unified Framework with Closed-Form Optimal Weights and Bidirectional Gradient Surgery for Physics-Informed Neural Networks
 
-This repository contains the implementation of **Bi-GS-PINN**, a training framework that tackles the **multi-loss balancing problem** in Physics-Informed Neural Networks (PINNs). In PINN training, the PDE residual, boundary, initial-condition (and data, for inverse problems) losses typically conflict with each other and cause optimization difficulty.
+This repository contains the implementation of **Bi-GS-PINN**, a unified training framework that tackles the **multi-loss balancing problem** in Physics-Informed Neural Networks (PINNs). In PINN training, the PDE residual, boundary, initial-condition (and data, for inverse problems) losses typically conflict with each other and cause optimization difficulty. Bi-GS-PINN combines two complementary mechanisms:
 
-**Bi-GS** (**Bi**directional **G**radient **S**urgery) operates on the gradients of individual loss terms in two directions:
-
-1. **Angle direction** — PCGrad-style projection removes conflicting gradient components between loss terms.
-2. **Magnitude direction** — SAM-GS-style equalization scales each loss term's gradient magnitude.
-
-On top of the surgery, an **OAW (Optimal Adaptive Weight)** scheme updates the loss weights every `weight_update_freq` steps using a closed-form formula based on inverse squared gradient norms, smoothed with an exponential moving average.
+1. **OAW (Optimal Adaptive Weight)** — a closed-form weighting scheme that updates the loss weights every `weight_update_freq` steps based on inverse squared gradient norms, smoothed with an exponential moving average, so that the instantaneous optimization progress of the competing loss terms is balanced.
+2. **Bi-GS** (**Bi**directional **G**radient **S**urgery) — operates on the gradients of individual loss terms in two directions:
+   - **Angle direction** — PCGrad-style projection removes conflicting gradient components between loss terms.
+   - **Magnitude direction** — conditional magnitude equalization rescales each loss term's gradient magnitude when the average magnitude similarity falls below the threshold `gamma = 0.5`.
 
 The framework is benchmarked against four widely used baselines (**standard** uniform weighting, **PCGrad**, **GradNorm**, **MOO-VARI**) across three forward PDEs and two inverse problems, with ablation and noise-robustness studies.
 
 ## 🌟 Key Features
 
-- **Bidirectional Gradient Surgery**: Angle projection (`gamma=0.5` magnitude-equalization trigger) + magnitude equalization, applied jointly to the per-loss gradients.
+- **Bidirectional Gradient Surgery**: Angle projection of conflicting gradients + conditional magnitude equalization (triggered when the average magnitude similarity falls below `gamma=0.5`), applied jointly to the per-loss gradients.
 - **OAW Closed-Form Weights**: Optimal weights computed from inverse squared gradient norms every 500 steps with EMA smoothing (`beta=0.9`) — no extra learnable parameters, no hyper-gradient updates.
-- **Rich Baselines**: `standard`, `pcgrad`, `gradnorm`, `moo_vari` (NSGA-II Pareto search + VARI adaptive weighting), plus `db_pinn` in the noise-robustness study.
+- **Rich Baselines**: `standard`, `pcgrad`, `gradnorm`, `moo_vari` (NSGA-II Pareto search + VARI adaptive weighting)
 - **Multi-Physics Support**:
   - **1D Burgers equation** — forward and inverse problems (reference data from Raissi's `burgers_shock.mat`).
   - **2D Fisher-KPP equation** — forward problem and inverse estimation of the reaction rate `rho`.
@@ -136,9 +134,9 @@ python Bi_GS_反问题/burgers/noise_robustness_burgers.py
 | `Bi_GS_正问题/3DMMS/ablation_3DMMS_Bi_GS_PINN.py` | Ablation study | Toggles `USE_ANGLE_PROJECTION` / `USE_MAGNITUDE_EQUALIZATION` / `USE_OAW_WEIGHTS` / `OAW_BETA` for the `full` / `no_angle` / `no_mag` / `no_oaw` / `no_ema` variants. |
 | `Bi_GS_反问题/burgers/inverse_burgers.py` | Burgers, inverse | Estimates the viscosity `nu` (true value `0.01/pi`) from 200 observation points with 1% Gaussian noise; 4 loss terms (PDE / BC / IC / data). |
 | `Bi_GS_反问题/Fisher-KPP/inverse_Fisher-KPP.py` | Fisher-KPP, inverse | Estimates the reaction rate `rho` (true value `20`); same 4-term loss setup. |
-| `Bi_GS_反问题/burgers/noise_robustness_burgers.py` | Noise-robustness study | Grid over 3 strategies x noise levels `{0.0, 0.01, 0.05}`; additionally implements the `db_pinn` gradient-statistics strategy. |
+| `Bi_GS_反问题/burgers/noise_robustness_burgers.py` | Noise-robustness study | Grid over 3 strategies x noise levels `{0.0, 0.01, 0.05}`; additionally implements the `db_pinn` gradient-statistics strategy (not reported in the paper). |
 
-At the end of each run, the script prints the paper-style summary table: **mean ± std of the relative L2 error (x 1e-3)**, the iteration at which the error first drops below `1e-3`, and (for inverse problems) the estimated parameter values.
+At the end of each run, the script prints the paper-style summary table: **mean ± std of the relative L2 error (x 1e-3)**, the estimated parameter values (for inverse problems), and the iteration at which the error first drops below `1e-3` (a training diagnostic kept for reference; the paper itself does not report this metric).
 
 ---
 
@@ -150,8 +148,8 @@ At the end of each run, the script prints the paper-style summary table: **mean 
 | `pcgrad` | Angle projection of conflicting gradients (PCGrad) | — |
 | `gradnorm` | Gradient-norm balancing with restoring force | `gn_lr=1e-3`, update every 500 steps (after 500-step warm-up), `gn_alpha=1.5` |
 | `moo_vari` | NSGA-II Pareto search over weight vectors + VARI adaptive weighting | Population 20, 5 generations, every 1000 steps, history window 100 |
-| `bi_gs` | **Bidirectional Gradient Surgery** (angle projection + magnitude equalization) + OAW closed-form weights | `gamma=0.5`, weight update every 500 steps, EMA `beta=0.9` |
-| `db_pinn` | Gradient-statistics-based weighting | `db_mm=10` (noise-robustness script only) |
+| `bi_gs` | **Bidirectional Gradient Surgery** (angle projection + conditional magnitude equalization) + OAW closed-form weights | `gamma=0.5`, weight update every 500 steps, EMA `beta=0.9` |
+| `db_pinn` | Gradient-statistics-based weighting | `db_mm=10` (noise-robustness script only; not reported in the paper) |
 
 All strategies share the same two-stage optimizer: **Adam** (`lr=1e-3`, 10,000–15,000 steps) followed by **L-BFGS** (strong-Wolfe line search, up to 10,000 iterations).
 
