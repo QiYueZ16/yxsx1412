@@ -1,3 +1,4 @@
+# Forward_3DMMS.py
 import os
 import time
 import numpy as np
@@ -11,9 +12,7 @@ from pyDOE import lhs
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# ==============================================
-# 🔧 配置区（4D MMS 大气方程系统参数）
-# ==============================================
+
 class Config:
     seed = 2026
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,40 +45,34 @@ class Config:
     u_0 = 1.0
     h_0 = 1.0
 
-    # ==========================================
-    # 🏃 运行模式切换：本地测试 vs 服务器训练
-    # ==========================================
+
     DEBUG_MODE = False  # 本地调试完毕后，上服务器前把它改成 False
-    RUN_STRATEGY = "moo_vari"  # 可选 "all", "standard", "bi_gs", "pcgrad", "moo_vari", "gradnorm", 或逗号组合
+    RUN_STRATEGY = "moo_vari"  # 可选 "all"
 
     if DEBUG_MODE:
-        N_f = 2000           # 内部配点
-        N_bc = 600           # 边界点（6面各100）
-        N_ic = 400           # 初始点
+        N_f = 2000           
+        N_bc = 600          
+        N_ic = 400          
 
-        adam_epochs = 500    # 快速测试
+        adam_epochs = 500  
         print_step = 100
         eval_step = 10
 
     else:
-        N_f = 20000          # 论文标准：20,000 PDE 残差点
-        N_bc = 6000          # 6面各1000
-        N_ic = 4000          # 初始点
+        N_f = 20000         
+        N_bc = 6000       
+        N_ic = 4000         
 
         adam_epochs = 15000
         print_step = 500
         eval_step = 100
 
-    # ==========================================
     lr = 1e-3
 
     # 权重调节优化策略参数
     weight_update_freq = 500
     oaw_beta = 0.9
 
-    # ==========================================
-    # 🔥 L-BFGS 二阶优化器参数
-    # ==========================================
     if DEBUG_MODE:
         lbfgs_max_iter = 200     # 调试：快速跑几步看逻辑
     else:
@@ -95,9 +88,7 @@ class Config:
     # Bi-GS-PINN param
     gamma = 0.5
 
-    # ==========================================
-    # 🧬 MOO-VARI 参数
-    # ==========================================
+
     moo_freq = 1000           # 每 N 个 epoch 激活一次 MOO-VARI
     moo_pop_size = 20         # NSGA-II 种群大小 N_p
     moo_n_gen = 5             # NSGA-II 迭代代数 N_g
@@ -108,19 +99,14 @@ class Config:
     moo_eta_m = 20            # 变异分布指数
     moo_epsilon = 1e-3        # VARI 温度控制阈值
     moo_param_bounds = 2.0    # 随机初始化参数的边界 [-b, b]
-
-    # ==========================================
-    # 🧪 GradNorm 参数
-    # ==========================================
     gn_lr = 1e-3             # GradNorm 权重学习率
     gn_update_freq = 500     # 权重更新频率（步）
     gn_update_after = 500    # 预热步数：前 N 步不更新权重
     gn_alpha = 1.5           # restoring force 强度
     gn_initial_losses_decay = 1.0  # 初始损失 EMA 衰减 (1.0=不衰减, <1.0=平滑)
 
-# ==============================================
-# 🎲 固定随机种子
-# ==============================================
+
+
 def set_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -133,9 +119,8 @@ def set_seed(seed):
 set_seed(Config.seed)
 PI = math.pi
 
-# ==============================================
-# 📌 MMS 精确解（解析定义）
-# ==============================================
+
+
 def exact_solution(X):
     """
     4D MMS 解析解。
@@ -157,14 +142,9 @@ def exact_solution(X):
 
     return u, v, w, h
 
-# ==============================================
-# 🧮 强迫项（从 MMS 解析解计算）
-# ==============================================
+
+
 def forcing_terms(X):
-    """
-    计算 PDE 强迫项 Fu, Fv, Fc。
-    X 会被 clone+detach+requires_grad 以计算偏导数。
-    """
     X = X.clone().detach().requires_grad_(True)
     u, v, w, h = exact_solution(X)
 
@@ -192,11 +172,8 @@ def forcing_terms(X):
 
     return Fu.detach(), Fv.detach(), Fc.detach()
 
-# ==============================================
-# 🎲 采样（4D 拉丁超立方 LHS）
-# ==============================================
+
 def sample_interior(n):
-    """内部配点：4D LHS 采样 (x, y, p, t)"""
     X_np = lhs(4, n)
     X_np[:, 0] = X_np[:, 0] * (Config.x_max - Config.x_min) + Config.x_min
     X_np[:, 1] = X_np[:, 1] * (Config.y_max - Config.y_min) + Config.y_min
@@ -206,12 +183,11 @@ def sample_interior(n):
     return X
 
 def sample_boundary(n):
-    """边界点：6 个面 (x=0, x=1, y=0, y=1, p=0, p=1)，每面 n//6 个点"""
     n_side = max(n // 6, 1)
     samples = []
     for val, dim in [(0.0, 0), (1.0, 0), (0.0, 1), (1.0, 1), (0.0, 2), (1.0, 2)]:
         side = lhs(4, n_side)
-        side[:, dim] = val  # 固定边界维度
+        side[:, dim] = val
         side[:, 0] = side[:, 0] * (Config.x_max - Config.x_min) + Config.x_min
         side[:, 1] = side[:, 1] * (Config.y_max - Config.y_min) + Config.y_min
         side[:, 2] = side[:, 2] * (Config.p_max - Config.p_min) + Config.p_min
@@ -221,16 +197,14 @@ def sample_boundary(n):
     return torch.tensor(X_np, dtype=torch.float32).to(Config.device)
 
 def sample_initial(n):
-    """初始条件点：t=0 固定，x,y,p 用 LHS 采样"""
     X_np = lhs(4, n)
-    X_np[:, 3] = Config.t_min  # t 固定为 0
+    X_np[:, 3] = Config.t_min  
     X_np[:, 0] = X_np[:, 0] * (Config.x_max - Config.x_min) + Config.x_min
     X_np[:, 1] = X_np[:, 1] * (Config.y_max - Config.y_min) + Config.y_min
     X_np[:, 2] = X_np[:, 2] * (Config.p_max - Config.p_min) + Config.p_min
     return torch.tensor(X_np, dtype=torch.float32).to(Config.device)
 
 def sample_test_4d(N, device=None):
-    """测试点：4D LHS"""
     X_np = lhs(4, N)
     X_np[:, 0] = X_np[:, 0] * (Config.x_max - Config.x_min) + Config.x_min
     X_np[:, 1] = X_np[:, 1] * (Config.y_max - Config.y_min) + Config.y_min
@@ -240,7 +214,6 @@ def sample_test_4d(N, device=None):
     return X.to(device) if device else X
 
 def evaluate_l2_4d(net, X_test, device='cpu'):
-    """在测试点上计算 L2 误差（分变量）"""
     net.eval()
     with torch.no_grad():
         pred = net(X_test)
@@ -254,13 +227,10 @@ def evaluate_l2_4d(net, X_test, device='cpu'):
     net.train()
     return l2_u.item(), l2_v.item(), l2_w.item(), l2_h.item()
 
-# ==============================================
-# 🚀 网络
-# ==============================================
+
 class PINN(nn.Module):
     def __init__(self, layers):
         super().__init__()
-        # 输入归一化：将 [0,1]^4 映射到 [-1,1]^4
         self.lb = torch.tensor([Config.x_min, Config.y_min, Config.p_min, Config.t_min],
                                dtype=torch.float32).to(Config.device)
         self.ub = torch.tensor([Config.x_max, Config.y_max, Config.p_max, Config.t_max],
@@ -276,14 +246,8 @@ class PINN(nn.Module):
         X_norm = 2.0 * (X - self.lb) / (self.ub - self.lb) - 1.0
         return self.net(X_norm)
 
-# ==============================================
-# 📉 4D MMS PDE 残差（3 分量：Ru, Rv, Rc）
-# ==============================================
+
 def pde_residuals(net, X, forcing_fn=None):
-    """
-    计算 PDE 残差 (Ru, Rv, Rc)。
-    返回: Ru, Rv, Rc 各 shape (N, 1)
-    """
     X = X.clone().detach().requires_grad_(True)
     pred = net(X)
     u, v, w, h = pred[:, 0:1], pred[:, 1:2], pred[:, 2:3], pred[:, 3:4]
@@ -319,14 +283,10 @@ def pde_residuals(net, X, forcing_fn=None):
     return Ru, Rv, Rc
 
 def boundary_loss(net, X):
-    """边界/初始损失：预测与精确解的 MSE"""
     pred = net(X)
     exact = torch.cat(exact_solution(X), dim=1)
     return torch.mean((pred - exact) ** 2)
 
-# ==============================================
-# 🧪 Bi-GS-PINN 梯度操作
-# ==============================================
 def cosine_similarity(g1, g2):
     dot = (g1 * g2).sum()
     norm1 = torch.norm(g1)
@@ -371,7 +331,6 @@ def bidirectional_gradient_surgery(g_list, gamma=0.5):
     return g_total
 
 def apply_bigspinn_surgery(losses, weights, net, gamma=0.5):
-    # 获取参数形状参考
     param_shapes = [p.shape for p in net.parameters()]
     param_numels = [p.numel() for p in net.parameters()]
 
@@ -379,7 +338,6 @@ def apply_bigspinn_surgery(losses, weights, net, gamma=0.5):
     for w, loss in zip(weights, losses):
         g = torch.autograd.grad(w * loss, net.parameters(), retain_graph=True,
                                 create_graph=False, allow_unused=True)
-        # 用正确形状的零张量替换 None 梯度，确保所有损失产生相同长度的扁平梯度
         flat_parts = []
         for grad_val, shape, numel in zip(g, param_shapes, param_numels):
             if grad_val is not None:
@@ -397,24 +355,15 @@ def apply_bigspinn_surgery(losses, weights, net, gamma=0.5):
         param.grad = g_total_flat[start:start + numel].view(param.shape)
         start += numel
 
-# ==============================================
-# 🧪 PCGrad 梯度操作（消融实验：仅角度投影，无幅度均衡）
-# ==============================================
+
 def apply_pcgrad(losses, net):
-    """
-    PCGrad: 对负相关的梯度对做角度投影后求和。
-    与 Bi-GS 的区别：不做幅度均衡，不做 OAW 权重（用等权重）。
-    """
-    # 获取参数形状参考
     param_shapes = [p.shape for p in net.parameters()]
     param_numels = [p.numel() for p in net.parameters()]
 
-    # 计算等权重下各损失的梯度
     grads = []
     for loss in losses:
         g = torch.autograd.grad(loss, net.parameters(), retain_graph=True,
                                 create_graph=False, allow_unused=True)
-        # 用正确形状的零张量替换 None 梯度，确保所有损失产生相同长度的扁平梯度
         flat_parts = []
         for grad_val, shape, numel in zip(g, param_shapes, param_numels):
             if grad_val is not None:
@@ -425,13 +374,11 @@ def apply_pcgrad(losses, net):
         grads.append(flat_grad)
 
     K = len(grads)
-    # 仅做角度投影（PCGrad 核心）
     for i in range(K):
         for j in range(K):
             if i != j and cosine_similarity(grads[i], grads[j]) < 0:
                 grads[i] = angle_projection(grads[i], grads[j])
 
-    # 求和（不做幅度均衡）
     g_total = sum(grads)
 
     start = 0
@@ -440,11 +387,8 @@ def apply_pcgrad(losses, net):
         param.grad = g_total[start:start + numel].view(param.shape)
         start += numel
 
-# ==============================================
-# 🧬 MOO-VARI: NSGA-II 帕累托搜索 + VARI 自适应加权
-# ==============================================
+
 def get_flat_params(net):
-    """将网络参数展平为一维 numpy 数组。"""
     params_list = []
     for p in net.parameters():
         params_list.append(p.data.detach().cpu().numpy().ravel())
@@ -452,7 +396,6 @@ def get_flat_params(net):
 
 
 def set_flat_params(net, flat):
-    """将一维 numpy 数组写回网络参数。"""
     start = 0
     for p in net.parameters():
         numel = p.numel()
@@ -462,13 +405,7 @@ def set_flat_params(net, flat):
 
 
 def evaluate_fitness(net, flat, X_f, X_bc, X_ic, forcing_cache):
-    """
-    对一个个体评估全部 5 个损失项。
-    返回 numpy 数组 [loss_Ru, loss_Rv, loss_Rc, loss_bc, loss_ic]
-    """
     set_flat_params(net, flat)
-
-    # PDE 残差损失（3 分量）
     with torch.enable_grad():
         X_f_local = X_f.clone().detach().requires_grad_(True)
         pred = net(X_f_local)
@@ -501,7 +438,6 @@ def evaluate_fitness(net, flat, X_f, X_bc, X_ic, forcing_cache):
         loss_Rv = torch.mean(Rv**2).item()
         loss_Rc = torch.mean(Rc**2).item()
 
-    # BC 和 IC 损失
     with torch.no_grad():
         pred_bc = net(X_bc)
         exact_bc = torch.cat(exact_solution(X_bc), dim=1)
@@ -515,7 +451,6 @@ def evaluate_fitness(net, flat, X_f, X_bc, X_ic, forcing_cache):
 
 
 def non_dominated_sort(fitness):
-    """NSGA-II 非支配排序。"""
     N = fitness.shape[0]
     dominated_count = np.zeros(N, dtype=int)
     dominates_list = [[] for _ in range(N)]
@@ -546,7 +481,6 @@ def non_dominated_sort(fitness):
 
 
 def crowding_distance(fitness, front):
-    """计算给定前沿中每个个体的拥挤距离。"""
     if len(front) <= 2:
         return np.full(len(front), np.inf)
 
@@ -571,7 +505,6 @@ def crowding_distance(fitness, front):
 
 
 def tournament_selection(fronts, crowding_dists, fitness, n_select):
-    """二元锦标赛选择。"""
     rank = np.zeros(fitness.shape[0], dtype=int)
     crowd = np.zeros(fitness.shape[0])
     for f_idx, front in enumerate(fronts):
@@ -593,7 +526,6 @@ def tournament_selection(fronts, crowding_dists, fitness, n_select):
 
 
 def sbx_crossover(p1, p2, eta_c=20, prob=0.9):
-    """模拟二进制交叉 (SBX)。"""
     c1, c2 = p1.copy(), p2.copy()
     for i in range(len(p1)):
         if np.random.rand() < prob:
@@ -616,7 +548,6 @@ def sbx_crossover(p1, p2, eta_c=20, prob=0.9):
 
 
 def polynomial_mutation(ind, bounds, eta_m=20, prob=0.1):
-    """多项式变异。"""
     mutated = ind.copy()
     for i in range(len(ind)):
         if np.random.rand() < prob:
@@ -631,13 +562,11 @@ def polynomial_mutation(ind, bounds, eta_m=20, prob=0.1):
 
 
 def nsga2_pareto_search(net, X_f, X_bc, X_ic, forcing_cache):
-    """NSGA-II 帕累托前沿搜索。返回 pareto_fitness (P, 5) numpy 数组。"""
     pop_size = Config.moo_pop_size
     n_gen = Config.moo_n_gen
     bounds = Config.moo_param_bounds
     n_vars = sum(p.numel() for p in net.parameters())
 
-    # 混合初始化
     population = []
     current_flat = get_flat_params(net)
     noise_scale = 0.05 * bounds
@@ -702,7 +631,6 @@ def nsga2_pareto_search(net, X_f, X_bc, X_ic, forcing_cache):
 
 
 def compute_vari_weights(pareto_fitness, loss_history_buffer, num_losses):
-    """VARI 自适应加权方法。返回 weights tensor shape (num_losses,)"""
     M = num_losses
     P = pareto_fitness.shape[0]
 
@@ -728,7 +656,6 @@ def compute_vari_weights(pareto_fitness, loss_history_buffer, num_losses):
     r_j = np.maximum(r_j, 1e-12)
     s_j = sigma_j / r_j
 
-    # 4D MMS 无 inverse 模式，统一温度
     exp_scores = np.exp(np.clip(s_j, -50, 50))
     lambda_j = M * exp_scores / np.sum(exp_scores)
 
@@ -737,19 +664,12 @@ def compute_vari_weights(pareto_fitness, loss_history_buffer, num_losses):
 
 def moo_vari_update(net, X_f, X_bc, X_ic, forcing_cache,
                     loss_history_buffer, num_losses):
-    """MOO-VARI 联合更新：NSGA-II + VARI。"""
     pareto_fitness = nsga2_pareto_search(net, X_f, X_bc, X_ic, forcing_cache)
     weights = compute_vari_weights(pareto_fitness, loss_history_buffer, num_losses)
     return weights
 
-# ==============================================
-# 🧪 GradNorm 自适应损失权重
-# ==============================================
+
 def apply_gradnorm(losses, net, weights, initial_losses=None, lr=1e-4, alpha=0.0):
-    """
-    GradNorm: 基于梯度范数平衡的自适应损失权重。
-    与原 GradNormLossWeighter 实现对齐。
-    """
     params_list = list(net.parameters())
     grad_norm_tensor = params_list[-2]
 
@@ -784,14 +704,11 @@ def apply_gradnorm(losses, net, weights, initial_losses=None, lr=1e-4, alpha=0.0
 
     return renormalized_loss_weights.detach()
 
-# ==============================================
-# 主训练（Adam + L-BFGS）
-# ==============================================
+
 def main(strategy="standard", seed=0, timestamp=""):
     net = PINN(Config.layers).to(Config.device)
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    # 文件名包含 Adam 和 L-BFGS 的迭代次数，便于区分不同实验
     opt_tag = f"A{Config.adam_epochs}_L{Config.lbfgs_max_iter}"
     if timestamp:
         current_save_dir = os.path.join(current_dir, "results", f"{strategy}_{opt_tag}_{timestamp}", f"seed_{seed}")
@@ -800,22 +717,18 @@ def main(strategy="standard", seed=0, timestamp=""):
 
     os.makedirs(current_save_dir, exist_ok=True)
 
-    # 采样
-    X_f = sample_interior(Config.N_f)     # PDE 残差配点
-    X_bc = sample_boundary(Config.N_bc)   # 边界条件点
-    X_ic = sample_initial(Config.N_ic)    # 初始条件点
 
-    # 测试点
+    X_f = sample_interior(Config.N_f)    
+    X_bc = sample_boundary(Config.N_bc)  
+    X_ic = sample_initial(Config.N_ic)   
+
     X_test = sample_test_4d(5000, Config.device)
 
-    # 预计算强迫项（固定目标值，不参与梯度）
     print("Precomputing forcing terms...")
     Fu, Fv, Fc = forcing_terms(X_f)
     forcing_cache = (Fu, Fv, Fc)
 
-    # ==========================================
-    # Phase 1: Adam Training
-    # ==========================================
+
     print("\n" + "=" * 60)
     print("Stage 1: Adam Training")
     print("=" * 60)
@@ -826,27 +739,24 @@ def main(strategy="standard", seed=0, timestamp=""):
     history_iter = []
     history_loss = []
     history_l2 = []
-    history_losses_detail = []   # 每个记录点各分量损失 [Ru, Rv, Rc, BC, IC]
-    history_weights = []         # 每个记录点的损失权重
+    history_losses_detail = []   
+    history_weights = []         
 
     iter_to_1e3 = -1
     current_iter = 0
 
-    # 5 个损失项：Ru, Rv, Rc, BC, IC
+
     num_losses = 5
     weights = torch.ones(num_losses, device=Config.device) / num_losses
 
-    # MOO-VARI 历史损失缓冲区
     loss_history_buffer = []
 
-    # GradNorm restoring force 初始损失
     gn_initial_losses = None
 
     def update_weights_smooth(prev_weights, optimal_weights, beta=0.9):
         return beta * prev_weights + (1 - beta) * optimal_weights
 
     for epoch in range(Config.adam_epochs):
-        # --- 计算各损失项 ---
         Ru, Rv, Rc = pde_residuals(net, X_f, lambda X: forcing_cache)
         loss_Ru = torch.mean(Ru ** 2)
         loss_Rv = torch.mean(Rv ** 2)
@@ -882,12 +792,10 @@ def main(strategy="standard", seed=0, timestamp=""):
             optimizer.step()
             loss = sum(w * l for w, l in zip(weights, losses)).detach()
         elif strategy == "pcgrad":
-            # PCGrad: 等权重 + 仅角度投影（不做 OAW + 不做幅度均衡）
             apply_pcgrad(losses, net)
             optimizer.step()
             loss = sum(losses).detach()
         elif strategy == "moo_vari":
-            # MOO-VARI: 每 f_MOO 步用 NSGA-II+VARI 更新损失权重
             if epoch > 0 and epoch % Config.moo_freq == 0:
                 weights = moo_vari_update(net, X_f, X_bc, X_ic, forcing_cache,
                                           loss_history_buffer, num_losses)
@@ -897,7 +805,6 @@ def main(strategy="standard", seed=0, timestamp=""):
             loss.backward()
             optimizer.step()
         elif strategy == "gradnorm":
-            # GradNorm: 基于梯度范数平衡的自适应权重
             if epoch >= Config.gn_update_after and epoch % Config.gn_update_freq == 0:
                 if gn_initial_losses is None:
                     gn_initial_losses = torch.stack([l.detach() for l in losses])
@@ -915,7 +822,6 @@ def main(strategy="standard", seed=0, timestamp=""):
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
-        # 记录各损失项历史（MOO-VARI 用）
         if strategy == "moo_vari":
             loss_vals = [l.detach().item() for l in losses]
             loss_history_buffer.append(loss_vals)
@@ -944,26 +850,24 @@ def main(strategy="standard", seed=0, timestamp=""):
     adam_time = time.time() - start
     print(f"\nAdam finished. Time: {adam_time:.2f} sec")
 
-    # ==========================================
-    # Phase 2: L-BFGS 精细优化
-    # ==========================================
+
     if Config.lbfgs_max_iter > 0:
         print("\n" + "=" * 60)
         print("Stage 2: L-BFGS Fine-tuning")
         print("=" * 60)
 
-        # ❄️ 冻结 Adam 阶段收敛的 OAW 权重
+
         final_weights = weights.detach().clone()
 
         optimizer_lbfgs = LBFGS(
             net.parameters(),
             lr=Config.lbfgs_lr,
             max_iter=Config.lbfgs_max_iter,
-            max_eval=None,  # 不限评估次数
+            max_eval=None, 
             history_size=Config.lbfgs_history_size,
             tolerance_grad=Config.lbfgs_tolerance_grad,
             tolerance_change=Config.lbfgs_tolerance_change,
-            line_search_fn="strong_wolfe"  # 强 Wolfe 线搜索，收敛后自然停下
+            line_search_fn="strong_wolfe"  
         )
 
         lbfgs_loss_history = []
@@ -982,11 +886,10 @@ def main(strategy="standard", seed=0, timestamp=""):
 
             losses_lbfgs = [loss_Ru, loss_Rv, loss_Rc, loss_bc, loss_ic]
 
-            # 用冻结的权重，标准 backward（不做 Bi-GS 手术）
             loss = sum(w * l for w, l in zip(final_weights, losses_lbfgs))
             loss.backward()
 
-            # 记录进度（torch.no_grad() 不切换模式，安全放在 closure 内）
+
             lbfgs_iter_count[0] += 1
             if lbfgs_iter_count[0] % 500 == 0 or lbfgs_iter_count[0] == 1:
                 with torch.no_grad():
@@ -1006,14 +909,12 @@ def main(strategy="standard", seed=0, timestamp=""):
         optimizer_lbfgs.step(closure)
         lbfgs_time = time.time() - lbfgs_start
 
-        # L-BFGS 结束后统一 eval
         l2_u, l2_v, l2_w, l2_h = evaluate_l2_4d(net, X_test, Config.device)
         l2_lbfgs_final = (l2_u + l2_v + l2_w + l2_h) / 4.0
         print(f"\nL-BFGS finished. Time: {lbfgs_time:.2f} sec")
         print(f"L-BFGS Final L2_avg: {l2_lbfgs_final:.3e}  (total L-BFGS iters: {lbfgs_iter_count[0]})")
         print(f"  L2_u={l2_u:.3e} L2_v={l2_v:.3e} L2_w={l2_w:.3e} L2_h={l2_h:.3e}")
 
-        # 把 L-BFGS 迭代追加到历史记录（用于画图）
         adam_final_iter = history_iter[-1] if history_iter else 0
         for i, (loss_val, l2_val) in enumerate(zip(lbfgs_loss_history, lbfgs_l2_history)):
             history_iter.append(adam_final_iter + (i + 1) * 500)
@@ -1022,7 +923,7 @@ def main(strategy="standard", seed=0, timestamp=""):
 
     print(f"\nTraining Complete! Total Time: {time.time()-start:.2f} sec")
 
-    # 最终评估
+
     l2_u, l2_v, l2_w, l2_h = evaluate_l2_4d(net, X_test, Config.device)
     l2_avg_final = (l2_u + l2_v + l2_w + l2_h) / 4.0
 
@@ -1044,9 +945,7 @@ def main(strategy="standard", seed=0, timestamp=""):
         print(f"  --> Iterations to 1e-3: Did not reach 1e-3. Final L2_avg={l2_avg_final:.3e}")
     print("=" * 60)
 
-    # ==========================================
-    # 📈 绘制 Loss 和 L2 收敛曲线
-    # ==========================================
+
     print("\nGenerating Plots...")
     plot_name = {"standard": "PINN (Uniform)", "pcgrad": "PCGrad", "bi_gs": "Bi-GS-PINN", "moo_vari": "MOO-VARI-PINN", "gradnorm": "GradNorm"}[strategy]
 
@@ -1077,7 +976,7 @@ def main(strategy="standard", seed=0, timestamp=""):
     plt.savefig(os.path.join(current_save_dir, "Convergence_Curve.pdf"))
     plt.close()
 
-    # 保存画图数据（后续可直接用 npz 重画，无需重新训练）
+
     np.savez(os.path.join(current_save_dir, "training_history.npz"),
              iteration=np.array(history_iter), loss=np.array(history_loss), l2=np.array(history_l2),
              strategy=strategy, seed=seed, adam_epochs=Config.adam_epochs,
@@ -1092,7 +991,7 @@ def main(strategy="standard", seed=0, timestamp=""):
     np.savez(os.path.join(current_save_dir, "weight_history.npz"),
              iteration=np.array(history_iter), weights=np.array(history_weights))
 
-    # 保存配置
+
     with open(os.path.join(current_save_dir, "config.txt"), "w") as f:
         f.write(f"equation = 4D MMS Atmospheric System\n")
         f.write(f"strategy = {strategy}\n")
@@ -1182,7 +1081,6 @@ if __name__ == "__main__":
         lines.append(f"| {name_str:<20} | Forward  | {l2_str:<18} | {iter_str:<12} |")
     lines.append("=" * 80)
 
-    # 打印 + 保存
     for line in lines:
         print(line)
 
