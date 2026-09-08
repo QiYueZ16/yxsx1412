@@ -2,28 +2,6 @@
 # plot_3DMMS_seed8_error_5x4.py
 # 3D+time MMS - absolute error comparison for paper
 # Seed = 8
-#
-# Layout: 5 rows (methods) x 4 columns (variables u, v, w, h)
-#
-#                 u             v             w             h
-# PINN        [error]       [error]       [error]       [error]
-# PCGrad      [error]       [error]       [error]       [error]
-# GradNorm    [error]       [error]       [error]       [error]
-# MOO-VARI    [error]       [error]       [error]       [error]
-# Bi-GS-PINN  [error]       [error]       [error]       [error]
-#
-# Slice: p = 0.5, t = 0.5, grid 201 x 201 (deterministic, no resampling)
-# Error: |u_pred - u_exact| per variable (absolute)
-#
-# Two colorbar variants (both saved, png + pdf):
-#   1) independent : each panel uses its own vmax (= error.max())
-#   2) shared      : all 20 panels share the global vmax
-#
-# Design unified with the paper's other figures
-# (Fisher-KPP error_5x3): jet colormap, per-panel colorbars,
-# rotated (a)-(e) row labels, math column titles, log-free panels.
-#
-# Models: plt/3DMMS/results/{strategy_folder}/seed_8/model_final.pth
 # ============================================================
 
 
