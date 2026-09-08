@@ -2,18 +2,6 @@
 # plot_3DMMS_seed8_compare.py
 # 3D + time MMS - loss / L2 convergence comparison (paper style)
 # Seed = 8
-#
-# Data source:
-#   plt/3DMMS/results/{strategy_folder}/seed_8/training_history.npz
-#   keys: iteration, loss, l2, strategy, seed, adam_epochs, lbfgs_max_iter
-#
-# Figures (all png 300dpi + pdf):
-#   1) 3DMMS_seed{SEED}_loss_l2_compare   (1x2 subplots: Loss | L2)
-#   2) 3DMMS_seed{SEED}_loss_compare      (Loss only)
-#   3) 3DMMS_seed{SEED}_l2_compare        (L2 only)
-#
-# Style: log y axes, xlim [0, 26000], dashed divider at Adam->L-BFGS,
-#        tab10 colors, frameoff legend (paper style).
 # ============================================================
 
 
