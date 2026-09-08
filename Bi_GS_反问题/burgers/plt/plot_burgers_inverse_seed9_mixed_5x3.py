@@ -2,22 +2,6 @@
 """
 plot_burgers_inverse_seed9_mixed_5x3.py
 反问题 1D Burgers 方程 - 论文用混合切片对比图 (Seed 9)
-（cross-section: 空间剖面 + 时间演化, 两截面在 (t,x)=(0.75,0.75) 相交）
-
-布局: 5 策略 x 3 列
-  col 1: 整个求解域 (t, x) 上的绝对误差云图 |u_pred - u_exact| (与 error_5x3 一致)
-  col 2: t = 0.75 时刻的空间剖面 u(x)   -- pred(蓝实线) + exact(红虚线), 同轴
-  col 3: x = 0.75 位置的时间演化 u(t)   -- pred(蓝实线) + exact(红虚线), 同轴
-         (t in [0, 2] 含训练域外推区; exact 用 Cole-Hopf 解析解,
-          已验证与 .mat 参考解一致到 ~1e-12)
-
-两种色标版本 (均输出 pdf + png):
-  1) independent : 每格热图用各自的 vmax (= error.max())
-  2) shared      : 5 格热图共享全局 vmax
-
-网格: .mat 原始点, 256 (x) x 100 (t), 与训练一致
-模型: results/inverse_{prefix}_A10000_L10000_*/seed_9/model_final.pth
-  PINN(standard) / PCGrad(pcgrad) / GradNorm(gradnorm) / MOO-VARI(moo_vari) / Bi-GS-PINN(bi_gs)
 """
 
 import os
