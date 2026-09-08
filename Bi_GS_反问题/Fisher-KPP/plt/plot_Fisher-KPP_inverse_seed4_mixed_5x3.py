@@ -2,24 +2,6 @@
 """
 plot_Fisher-KPP_inverse_seed4_mixed_5x3.py
 反问题 2D Fisher-KPP 方程 - 论文用混合切片对比图 (Seed 4)
-（参考 plot_burgers_inverse_seed9_mixed_5x3.py 的布局/颜色/双模式）
-
-布局: 5 策略 x 3 列
-  col 1: t = 0.20 时刻 (x, y) 平面上的绝对误差云图 |u_pred - u_exact| (65x65)
-  col 2: t = 0.15 时刻沿 y=0 的空间剖面 u(x, 0, 0.15) -- pred(蓝实线) + exact(红虚线), 同轴
-  col 3: x = 0.15 位置沿 y=0 的时间演化 u(0.15, 0, t) -- pred(蓝实线) + exact(红虚线), 同轴
-         (c = 0.15 由 fk_slice_l2_stats_seed4.py 选出:
-          两面板 Bi-GS 均排第 1 且综合 margin 最大)
-
-两种色标版本 (均输出 pdf + png):
-  1) independent : 每格热图用各自的 vmax (= error.max())
-  2) shared      : 5 格热图共享全局 vmax
-
-网格: 与训练一致 65(x) x 65(y) x 21(t)
-exact: 解析解 u = [1 + exp(k(z - ct))]^-2, z = (x+y)/sqrt(2),
-       k = sqrt(rho/(6 nu)), c_wave = 5 sqrt(nu rho/6); nu = 0.05, rho = 20.0
-模型: results/inverse_{prefix}_A10000_L10000_*/seed_4/model_final.pth
-  PINN(standard) / PCGrad(pcgrad) / GradNorm(gradnorm) / MOO-VARI(moo_vari) / Bi-GS-PINN(bi_gs)
 """
 
 import os
@@ -55,7 +37,7 @@ SLICE_C = 0.15
 PRED_BATCH_SIZE = 65536
 
 # ============================================================
-# 2. Directories (路径一律用 ASCII 种子定位, 避免中文字面量)
+# 2. Directories 
 # ============================================================
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -64,7 +46,7 @@ SAVE_DIR = os.path.join(CURRENT_DIR, "figures")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # ============================================================
-# 3. Fisher-KPP analytic solution (解析, 与训练 exact_solution_fisher 同一公式)
+# 3. Fisher-KPP analytic solution 
 # ============================================================
 
 K_FISHER = np.sqrt(RHO / (6.0 * NU_FISHER))
@@ -117,7 +99,7 @@ ROW_LABELS = {
     "Bi-GS-PINN": "(e) Bi-GS-PINN",
 }
 
-# 二三列 pred 曲线统一蓝色 (与快照图一致), exact 红色虚线
+
 PRED_COLOR = "#1f77b4"
 EXACT_COLOR = "r"
 
@@ -135,7 +117,7 @@ def find_strategy_dir(prefix):
 
 
 # ============================================================
-# 5. PINN network (inverse=True 注册 rho_param 以兼容 state_dict)
+# 5. PINN network 
 # ============================================================
 
 class PINN(nn.Module):
@@ -206,13 +188,12 @@ print(f"col1: t = {T_HEAT:.2f} (x,y) plane | col2: t = {SLICE_C:.2f}, y = 0 | "
       f"col3: x = {SLICE_C:.2f}, y = 0")
 print("=" * 70)
 
-errors_heat = {}   # method -> (65, 65) t=T_HEAT 平面绝对误差
-l2_heat = {}       # method -> 该平面相对 L2
-pred_t = {}        # method -> u(x_ref, 0, SLICE_C)
-pred_x = {}        # method -> u(SLICE_C, 0, t_ref)
-maxerr_t = {}      # method -> t 切片最大绝对误差 (x 方向)
-maxerr_x = {}      # method -> x 切片最大绝对误差 (t 方向)
-
+errors_heat = {}   
+l2_heat = {}       
+pred_t = {}        
+pred_x = {}     
+maxerr_t = {}    
+maxerr_x = {}   
 exact_t_curve = exact_solution_fisher(np.hstack([
     x_ref.reshape(-1, 1),
     np.zeros((len(x_ref), 1)),
