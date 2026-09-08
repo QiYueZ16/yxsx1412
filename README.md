@@ -17,7 +17,7 @@ The framework is benchmarked against four widely used baselines (**standard** un
 - **Multi-Physics Support**:
   - **1D Burgers equation** — forward and inverse problems (reference data from Raissi's `burgers_shock.mat`).
   - **2D Fisher-KPP equation** — forward problem and inverse estimation of the reaction rate `rho`.
-  - **4D atmospheric equation system (MMS)** — manufactured solution with forcing terms, four output components `(u, v, w, h)`.
+  - **3D atmospheric equation system (MMS)** — manufactured solution with forcing terms, four output components `(u, v, w, h)`.
 - **Inverse Problems**: Unknown parameters (viscosity `nu`, reaction rate `rho`) are registered as learnable `nn.Parameter`s and recovered from 200 noisy observation points.
 - **Two-Stage Optimization**: Adam (`lr=1e-3`) pretraining followed by L-BFGS fine-tuning with strong-Wolfe line search.
 - **Ablation & Robustness Studies**: Component ablation (`full` / `no_angle` / `no_mag` / `no_oaw` / `no_ema`) and noise-robustness grid (0% / 1% / 5% Gaussian noise).
@@ -44,7 +44,7 @@ The framework is benchmarked against four widely used baselines (**standard** un
 │   │   │   ├── plot_Fisher-KPP_seed4_error_5x3.py       # 5-strategy absolute-error heatmap grid
 │   │   │   └── plot_Fisher-KPP_seed4_weights.py         # Loss-weight evolution
 │   │   └── results/
-│   └── 3DMMS/                        # 4D atmospheric equation system (MMS)
+│   └── 3DMMS/                        # 3D atmospheric equation system (MMS)
 │       ├── Forward_3DMMS.py          # Main script: PINN training for the MMS system
 │       ├── ablation_3DMMS_Bi_GS_PINN.py  # Ablation study of Bi-GS components
 │       ├── plt/
@@ -130,7 +130,7 @@ python Bi_GS_反问题/burgers/noise_robustness_burgers.py
 |---|---|---|
 | `Bi_GS_正问题/burgers/Forward_burgers.py` | 1D Burgers, forward | `nu = 0.01/pi`; reference solution interpolated from `burgers_shock.mat`; 20,000 PDE residual / 8,000 boundary / 2,000 initial points; MLP `[2, 64, 64, 64, 1]`. |
 | `Bi_GS_正问题/Fisher-KPP/Forward_Fisher-KPP.py` | 2D Fisher-KPP, forward | Analytic traveling-wave solution; `nu = 0.05`, `rho = 20`; domain `[-1,1]^2 x [0, 0.4]`; MLP `[3, 64, 64, 64, 1]`. |
-| `Bi_GS_正问题/3DMMS/Forward_3DMMS.py` | 4D MMS atmospheric system, forward | Manufactured solution + forcing terms; 4 outputs `(u, v, w, h)`; domain `[0,1]^4`; MLP `[4, 64, 64, 64, 4]`. |
+| `Bi_GS_正问题/3DMMS/Forward_3DMMS.py` | 3D MMS atmospheric system, forward | Manufactured solution + forcing terms; 4 outputs `(u, v, w, h)`; domain `[0,1]^4`; MLP `[4, 64, 64, 64, 4]`. |
 | `Bi_GS_正问题/3DMMS/ablation_3DMMS_Bi_GS_PINN.py` | Ablation study | Toggles `USE_ANGLE_PROJECTION` / `USE_MAGNITUDE_EQUALIZATION` / `USE_OAW_WEIGHTS` / `OAW_BETA` for the `full` / `no_angle` / `no_mag` / `no_oaw` / `no_ema` variants. |
 | `Bi_GS_反问题/burgers/inverse_burgers.py` | Burgers, inverse | Estimates the viscosity `nu` (true value `0.01/pi`) from 200 observation points with 1% Gaussian noise; 4 loss terms (PDE / BC / IC / data). |
 | `Bi_GS_反问题/Fisher-KPP/inverse_Fisher-KPP.py` | Fisher-KPP, inverse | Estimates the reaction rate `rho` (true value `20`); same 4-term loss setup. |
