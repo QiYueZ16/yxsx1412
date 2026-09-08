@@ -2,40 +2,6 @@
 # plot_Fisher-KPP_seed4_error_5x3.py
 # 2D Fisher-KPP equation - error comparison for paper
 # Seed = 4
-#
-# Equation:
-#   u_t = nu * (u_xx + u_yy) + rho * u * (1-u)
-#
-# Exact solution:
-#   u(z,t) = [1 + exp(k(z - c t))]^{-2}
-#
-#   z = (x+y)/sqrt(2)
-#   k = sqrt(rho/(6*nu))
-#   c = 5*sqrt(nu*rho/6)
-#
-# Models (from plt/Fisher-KPP/results/, seed_4 of each strategy):
-#   PINN        <- standard
-#   PCGrad      <- pcgrad
-#   GradNorm    <- gradnorm
-#   MOO-VARI    <- moo_vari
-#   Bi-GS-PINN  <- bi_gs
-#
-# ============================================================
-#
-# Figure: 5 x 3  (Absolute Error |u_pred - u_exact|)
-#
-#                 t=0.0       t=0.2       t=0.4
-#
-# PINN             [Error]     [Error]     [Error]
-# PCGrad           [Error]     [Error]     [Error]
-# GradNorm         [Error]     [Error]     [Error]
-# MOO-VARI         [Error]     [Error]     [Error]
-# Bi-GS-PINN       [Error]     [Error]     [Error]
-#
-# Two colorbar variants (both saved, png + pdf):
-#   1) independent : each panel uses its own vmax (= error.max())
-#   2) shared      : all 5 panels share the global vmax (= max error over all)
-#
 # ============================================================
 
 
@@ -685,11 +651,6 @@ for method in methods:
         method
     ]
 
-    # --------------------------------------------------------
-    # Full 3D evaluation grid for overall L2
-    #
-    # Same 65 x 65 x 21 reference grid as training/evaluation.
-    # --------------------------------------------------------
 
     x_eval = np.linspace(
         X_MIN,
