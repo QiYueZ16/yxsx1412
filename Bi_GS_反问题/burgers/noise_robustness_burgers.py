@@ -26,7 +26,7 @@ class Config:
 
     DEBUG_MODE = False  # 本地调试完毕后，上服务器前把它改成 False
     INVERSE_MODE = True   # 手动切换：False 为正问题，True 为反问题
-    RUN_STRATEGY = "moo_vari"  # 可选 "all", 单策略
+    RUN_STRATEGY = "all"  # 可选 "all", 单策略
 
     if DEBUG_MODE:
         N_f = 2000           
