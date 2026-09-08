@@ -2,18 +2,6 @@
 # plot_burgers_seed5_weights.py
 # Burgers equation - loss weight evolution (paper style)
 # Seed = 5
-#
-# Data source:
-#   plt/burgers/results/{strategy_folder}/seed_5/weight_history.npz
-#   keys: iteration, weights (n_points, 3)  [λ_pde, λ_bc, λ_ic]
-#
-# Figure: 1x2 subplots
-#   (a) Bi-GS-PINN  - adaptive OAW weights, sum = 1
-#   (b) PINN        - standard, constant equal weights [1/3, 1/3, 1/3]
-#
-# Adam phase only (iterations 0..10000; training config A10000_L10000),
-# dashed divider at x = 10000 (Adam -> L-BFGS boundary, no text).
-# Style: linear y, grid, frameoff legend.
 # Output: burgers_seed{SEED}_weight_evolution.pdf / .png
 # ============================================================
 
