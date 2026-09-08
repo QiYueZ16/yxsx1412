@@ -28,7 +28,7 @@ class Config:
 
     DEBUG_MODE = False
     INVERSE_MODE = True     # 反问题：估计未知参数 rho
-    RUN_STRATEGY = "bi_gs"  # 可选 "all"
+    RUN_STRATEGY = "all"  # 可选 "all"
 
     if DEBUG_MODE:
         N_f = 2000
