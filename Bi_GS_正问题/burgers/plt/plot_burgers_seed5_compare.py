@@ -2,18 +2,6 @@
 # plot_burgers_seed5_compare.py
 # Burgers equation - loss / L2 convergence comparison (paper style)
 # Seed = 5
-#
-# Data source:
-#   plt/burgers/results/{strategy_folder}/seed_5/training_history.npz
-#   keys: iteration, loss, l2, strategy, seed, adam_epochs, lbfgs_max_iter
-#
-# Figures (all png 300dpi + pdf):
-#   1) burgers_seed{SEED}_loss_l2_compare   (1x2 subplots: Loss | L2)
-#   2) burgers_seed{SEED}_loss_compare      (Loss only)
-#   3) burgers_seed{SEED}_l2_compare        (L2 only)
-#
-# Style: log y axes, xlim [0, 21000], dashed divider at Adam->L-BFGS,
-#        tab10 colors, frameoff legend (paper style).
 # ============================================================
 
 
