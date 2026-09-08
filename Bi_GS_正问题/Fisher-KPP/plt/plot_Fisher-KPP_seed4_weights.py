@@ -2,16 +2,6 @@
 # plot_Fisher-KPP_seed4_weights.py
 # 2D Fisher-KPP - loss weight evolution (paper style)
 # Seed = 4
-#
-# Data source:
-#   plt/Fisher-KPP/results/{strategy_folder}/seed_4/weight_history.npz
-#   keys: iteration, weights (n_points, 3)  [λ_pde, λ_bc, λ_ic]
-#
-# Figure: 1x2 subplots
-#   (a) Bi-GS-PINN  - adaptive OAW weights, sum = 1
-#   (b) PINN        - standard, constant equal weights [1/3, 1/3, 1/3]
-#
-# Style: linear y, Adam phase only (iterations 0..10000), grid, frameoff legend.
 # Output: Fisher-KPP_seed{SEED}_weight_evolution.pdf / .png
 # ============================================================
 
