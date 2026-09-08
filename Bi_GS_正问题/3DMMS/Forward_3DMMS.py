@@ -47,7 +47,7 @@ class Config:
 
 
     DEBUG_MODE = False  # 本地调试完毕后，上服务器前把它改成 False
-    RUN_STRATEGY = "moo_vari"  # 可选 "all"
+    RUN_STRATEGY = "all"  # 可选 "all"
 
     if DEBUG_MODE:
         N_f = 2000           
