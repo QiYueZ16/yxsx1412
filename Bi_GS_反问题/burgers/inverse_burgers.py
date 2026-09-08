@@ -182,7 +182,6 @@ class PINN(nn.Module):
 
 
 def pde_loss(net, X):
-    # clone+detach 隔离外部叶张量，防止 X.grad 在多轮 backward 中累积溢出
     X_local = X.clone().detach().requires_grad_(True)
     u = net(X_local)
 
