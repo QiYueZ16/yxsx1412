@@ -1,4 +1,4 @@
-# 2D Fisher-KPP 方程 Bi-GS-PINN 实验代码
+# inverse_Fisher-KPP.py
 import os
 import time
 import numpy as np
@@ -12,9 +12,7 @@ from pyDOE import lhs
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# ==============================================
-# 🔧 配置区（2D Fisher-KPP 参数）
-# ==============================================
+
 class Config:
     seed = 2026
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,14 +25,10 @@ class Config:
     # Fisher-KPP 参数
     nu_fisher = 0.05        # 扩散系数
     rho = 20.0               # 反应速率
-    # k = sqrt(rho/(6*nu)) ≈ 0.408, omega = 5*rho/6 ≈ 0.833, c ≈ 2.04
 
-    # ==========================================
-    # 🏃 运行模式切换
-    # ==========================================
     DEBUG_MODE = False
     INVERSE_MODE = True     # 反问题：估计未知参数 rho
-    RUN_STRATEGY = "bi_gs"  # 可选 "all", "standard", "pcgrad", "bi_gs", "moo_vari", "gradnorm"
+    RUN_STRATEGY = "bi_gs"  # 可选 "all"
 
     if DEBUG_MODE:
         N_f = 2000
@@ -55,18 +49,14 @@ class Config:
 
     lr = 1e-3
 
-    # OAW 权重参数
     weight_update_freq = 500
     oaw_beta = 0.9
 
     layers = [3, 64, 64, 64, 1]  # 输入 (x,y,t)，输出 u
 
-    # Bi-GS-PINN param
     gamma = 0.5
 
-    # ==========================================
-    # 🧬 MOO-VARI 参数
-    # ==========================================
+    
     moo_freq = 1000
     moo_pop_size = 20
     moo_n_gen = 5
@@ -77,25 +67,19 @@ class Config:
     moo_eta_m = 20
     moo_epsilon = 1e-3
     moo_param_bounds = 2.0
+    gn_lr = 1e-3             
+    gn_update_freq = 500    
+    gn_update_after = 500    
+    gn_alpha = 1.5           
+    gn_initial_losses_decay = 1.0  
 
-    # ==========================================
-    # 🧪 GradNorm 参数
-    # ==========================================
-    gn_lr = 1e-3             # GradNorm 权重学习率
-    gn_update_freq = 500     # 权重更新频率（步）
-    gn_update_after = 500    # 预热步数：前 N 步不更新权重
-    gn_alpha = 1.5           # restoring force 强度
-    gn_initial_losses_decay = 1.0  # 初始损失 EMA 衰减
 
-    # L-BFGS 参数
     lbfgs_lr = 0.5
     lbfgs_history_size = 50
     lbfgs_tolerance_grad = 1e-9
     lbfgs_tolerance_change = 1e-11
 
-# ==============================================
-# 🎲 固定随机种子
-# ==============================================
+
 def set_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -108,21 +92,11 @@ def set_seed(seed):
 set_seed(Config.seed)
 PI = math.pi
 
-# ==============================================
-# 📌 2D Fisher-KPP 解析解（平面行波，45°方向）
-#    u(z,t) = [1 + exp(k(z - ct))]⁻²
-#    其中 z = (x+y)/√2, k = √(ρ/(6ν)), c = 5√(νρ/6)
-#    PDE 残差经验证 ≈ 1e-16（机器精度）
-# ==============================================
+
 k_fisher = np.sqrt(Config.rho / (6.0 * Config.nu_fisher))
 c_fisher = 5.0 * np.sqrt(Config.nu_fisher * Config.rho / 6.0)
 
 def exact_solution_fisher(X_np):
-    """
-    二维 Fisher-KPP 平面行波解析解。
-    X_np: numpy array shape (N, 3)，列顺序 (x, y, t)
-    返回: numpy array shape (N, 1)
-    """
     x = X_np[:, 0:1]
     y = X_np[:, 1:2]
     t = X_np[:, 2:3]
@@ -133,21 +107,17 @@ def exact_solution_fisher(X_np):
 print(f"Fisher-KPP: nu={Config.nu_fisher}, rho={Config.rho}")
 print(f"  k={k_fisher:.4f}, c={c_fisher:.4f}, wave speed verified")
 
-# 生成参考解（均匀网格，用于评价）
-x_ref = np.linspace(Config.x_min, Config.x_max, 65)   # 65 点，步长 1/32
+x_ref = np.linspace(Config.x_min, Config.x_max, 65)  
 y_ref = np.linspace(Config.y_min, Config.y_max, 65)
-t_ref = np.linspace(Config.t_min, Config.t_max, 21)   # 21 snapshots
+t_ref = np.linspace(Config.t_min, Config.t_max, 21)   
 Xm, Ym, Tm = np.meshgrid(x_ref, y_ref, t_ref, indexing="ij")
 X_ref_np = np.stack([Xm.flatten(), Ym.flatten(), Tm.flatten()], axis=1)
 Exact = exact_solution_fisher(X_ref_np).reshape(len(x_ref), len(y_ref), len(t_ref))
 
 print(f"  Reference grid: {len(x_ref)}x{len(y_ref)}x{len(t_ref)} = {Exact.size} pts")
 
-# ==============================================
-# 🎲 采样函数（3D LHS + 四面边界）
-# ==============================================
+
 def sample_interior(n):
-    """3D LHS：(x,y,t) ∈ [-1,1]² × [0,T]"""
     X = lhs(3, n)
     X[:, 0] = X[:, 0] * (Config.x_max - Config.x_min) + Config.x_min
     X[:, 1] = X[:, 1] * (Config.y_max - Config.y_min) + Config.y_min
@@ -157,7 +127,6 @@ def sample_interior(n):
     return X
 
 def sample_boundary(n):
-    """四个边界面各 n//4 个点"""
     n_each = max(n // 4, 1)
     points = []
     for face, fixed_val in [("x", -1.0), ("x", 1.0), ("y", -1.0), ("y", 1.0)]:
@@ -172,16 +141,13 @@ def sample_boundary(n):
     return torch.tensor(X, dtype=torch.float32).to(Config.device)
 
 def sample_initial(n):
-    """2D LHS 在 (x,y) 空间，t=0"""
     xy = lhs(2, n)
     xy[:, 0] = xy[:, 0] * (Config.x_max - Config.x_min) + Config.x_min
     xy[:, 1] = xy[:, 1] * (Config.y_max - Config.y_min) + Config.y_min
     X = np.hstack([xy, np.zeros((n, 1))])
     return torch.tensor(X, dtype=torch.float32).to(Config.device)
 
-# ==============================================
-# 📊 评价函数（3D meshgrid）
-# ==============================================
+
 def evaluate_full_mesh(net, x_ref, y_ref, t_ref, Exact):
     Xm, Ym, Tm = np.meshgrid(x_ref, y_ref, t_ref, indexing="ij")
     Xt = np.stack([Xm.flatten(), Ym.flatten(), Tm.flatten()], axis=1)
@@ -195,9 +161,7 @@ def evaluate_full_mesh(net, x_ref, y_ref, t_ref, Exact):
     l2 = np.linalg.norm(u_pred.flatten() - Exact.flatten()) / np.linalg.norm(Exact.flatten())
     return l2
 
-# ==============================================
-# 🚀 网络
-# ==============================================
+
 class PINN(nn.Module):
     def __init__(self, layers, inverse=False):
         super().__init__()
@@ -214,7 +178,6 @@ class PINN(nn.Module):
                 modules.append(nn.Tanh())
         self.net = nn.Sequential(*modules)
 
-        # 反问题：rho 为可学习参数，初始猜测偏离真值
         if inverse:
             self.rho_param = nn.Parameter(torch.tensor(10.0, dtype=torch.float32))
         else:
@@ -224,9 +187,7 @@ class PINN(nn.Module):
         x_norm = 2.0 * (x - self.lb) / (self.ub - self.lb) - 1.0
         return self.net(x_norm)
 
-# ==============================================
-# 📉 PDE 残差：u_t - ν(u_xx+u_yy) - ρ·u·(1-u) = 0
-# ==============================================
+
 def pde_loss(net, X):
     u = net(X)
 
@@ -244,26 +205,20 @@ def pde_loss(net, X):
     res = u_t - nu * (u_xx + u_yy) - rho * u * (1.0 - u)
     return torch.mean(res**2)
 
-# ==============================================
-# 📉 边界条件（Dirichlet，从解析解取值）
-# ==============================================
+
 def boundary_loss(net, X):
     X_np = X.detach().cpu().numpy()
     u_true = torch.tensor(exact_solution_fisher(X_np), dtype=torch.float32).to(Config.device)
     return torch.mean((net(X) - u_true)**2)
 
-# ==============================================
-# 📉 初始条件（t=0 解析解）
-# ==============================================
+
 def initial_loss(net, X):
     X_np = X.detach().cpu().numpy().copy()
     X_np[:, 2] = 0.0  # 强制 t=0
     u0 = torch.tensor(exact_solution_fisher(X_np), dtype=torch.float32).to(Config.device)
     return torch.mean((net(X) - u0)**2)
 
-# ==============================================
-# 🧪 Bi-GS-PINN 梯度操作（完全复用）
-# ==============================================
+
 def cosine_similarity(g1, g2):
     dot = (g1 * g2).sum()
     norm1 = torch.norm(g1)
@@ -320,14 +275,9 @@ def apply_bigspinn_surgery(losses, weights, net, gamma=0.5):
         param.grad = g_total_flat[start:start + numel].view(param.shape)
         start += numel
 
-# ==============================================
-# 🧪 PCGrad 梯度操作（消融实验：仅角度投影，无幅度均衡）
-# ==============================================
+
 def apply_pcgrad(losses, net):
-    """
-    PCGrad: 对负相关的梯度对做角度投影后求和。
-    与 Bi-GS 的区别：不做幅度均衡，不做 OAW 权重（用等权重）。
-    """
+
     grads = []
     for loss in losses:
         g = torch.autograd.grad(loss, net.parameters(), retain_graph=True, create_graph=False, allow_unused=True)
@@ -348,11 +298,8 @@ def apply_pcgrad(losses, net):
         param.grad = g_total[start:start + numel].view(param.shape)
         start += numel
 
-# ==============================================
-# 🧬 MOO-VARI: NSGA-II 帕累托搜索 + VARI 自适应加权
-# ==============================================
+
 def get_flat_params(net, inverse=False):
-    """将网络参数展平为一维 numpy 数组。反问题时包含 rho_param。"""
     params_list = []
     for p in net.parameters():
         params_list.append(p.data.detach().cpu().numpy().ravel())
@@ -361,7 +308,6 @@ def get_flat_params(net, inverse=False):
     return np.concatenate(params_list)
 
 def set_flat_params(net, flat, inverse=False):
-    """将一维 numpy 数组写回网络参数。返回参数总数（不含 rho_param）。"""
     start = 0
     for p in net.parameters():
         numel = p.numel()
@@ -374,9 +320,7 @@ def set_flat_params(net, flat, inverse=False):
     return start
 
 def evaluate_fitness(net, flat, inverse, X_f, X_bc, X_ic, X_data=None, u_data=None):
-    """对一个个体评估全部损失项。返回 numpy 数组 [loss_pde, loss_bc, loss_ic, (loss_data)]。"""
     set_flat_params(net, flat, inverse)
-    # Fisher-KPP PDE 残差（需要 grad）
     with torch.enable_grad():
         X_f_local = X_f.clone().detach().requires_grad_(True)
         u = net(X_f_local)
@@ -388,7 +332,7 @@ def evaluate_fitness(net, flat, inverse, X_f, X_bc, X_ic, X_data=None, u_data=No
         rho_val = net.rho_param.item() if inverse else Config.rho
         res = u_t - nu_val * (u_xx + u_yy) - rho_val * u * (1.0 - u)
         loss_pde = torch.mean(res**2).item()
-    # BC 和 IC（不需要 grad）
+
     with torch.no_grad():
         X_np = X_bc.detach().cpu().numpy()
         u_bc_true = torch.tensor(exact_solution_fisher(X_np), dtype=torch.float32).to(Config.device)
@@ -579,35 +523,17 @@ def moo_vari_update(net, inverse, X_f, X_bc, X_ic, X_data, u_data,
     weights = compute_vari_weights(pareto_fitness, loss_history_buffer, num_losses, inverse)
     return weights
 
-# ==============================================
-# 🧪 GradNorm 自适应损失权重
-# ==============================================
-def apply_gradnorm(losses, net, weights, initial_losses=None, lr=1e-4, alpha=0.0):
-    """
-    GradNorm: 基于梯度范数平衡的自适应损失权重。
-    与原 GradNormLossWeighter 实现对齐。
 
-    参数:
-        losses: 损失张量列表 [loss_pde, loss_bc, loss_ic, ...]
-        net: PINN 网络
-        weights: 当前权重 tensor shape (num_losses,)
-        initial_losses: 初始损失值 tensor shape (num_losses,)，用于 restoring force
-        lr: 权重更新学习率
-        alpha: restoring force (0=关闭)
-    返回:
-        更新后的权重 tensor (detached)
-    """
-    # grad_norm_parameters: 使用倒数第二层权重（penultimate layer）
+def apply_gradnorm(losses, net, weights, initial_losses=None, lr=1e-4, alpha=0.0):
+
     params_list = list(net.parameters())
     grad_norm_tensor = params_list[-2]
 
     num_losses = len(losses)
     init_loss_weights_for_sum = weights.sum().detach()
 
-    # 将 weights 设为 Parameter，构建 w_i → G_i 的计算图
     loss_weights = weights.detach().clone().requires_grad_(True)
 
-    # 计算每个加权损失的梯度范数 G_i = ||∇_W (w_i * L_i)||
     grad_norms = []
     for weight, loss in zip(loss_weights, losses):
         gradients, = torch.autograd.grad(weight * loss, grad_norm_tensor,
@@ -615,10 +541,8 @@ def apply_gradnorm(losses, net, weights, initial_losses=None, lr=1e-4, alpha=0.0
         grad_norms.append(gradients.norm(p=2))
     grad_norms = torch.stack(grad_norms)  # (num_losses,)
 
-    # 梯度范数均值
     grad_norm_average = grad_norms.mean().detach()
 
-    # 目标梯度范数
     if alpha > 0 and initial_losses is not None:
         # Restoring force: gradient_target = G_avg × (relative_training_rate)^{-alpha}
         with torch.no_grad():
@@ -628,22 +552,17 @@ def apply_gradnorm(losses, net, weights, initial_losses=None, lr=1e-4, alpha=0.0
     else:
         gradient_target = grad_norm_average.expand(num_losses).detach()
 
-    # L1 损失
     grad_norm_loss = F.l1_loss(grad_norms, gradient_target)
 
-    # 计算 loss_weights 的梯度
     loss_weights_grad = torch.autograd.grad(grad_norm_loss, loss_weights)[0]
 
-    # 梯度下降 + 重归一化
     updated_loss_weights = loss_weights.detach() - loss_weights_grad * lr
     updated_loss_weights = torch.clamp(updated_loss_weights, min=1e-8)
     renormalized_loss_weights = torch.nn.functional.normalize(updated_loss_weights, p=1, dim=0) * init_loss_weights_for_sum
 
     return renormalized_loss_weights.detach()
 
-# ==============================================
-# 主训练（Adam + L-BFGS）
-# ==============================================
+
 def main(strategy="standard", inverse=False, seed=0, timestamp=""):
     net = PINN(Config.layers, inverse=inverse).to(Config.device)
 
@@ -663,7 +582,6 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
     X_bc = sample_boundary(Config.N_bc)
     X_ic = sample_initial(Config.N_ic)
 
-    # For inverse problem: generate observation data
     if inverse:
         N_data = 200
         X_data_np = np.random.uniform(-1, 1, (N_data, 3))
@@ -695,10 +613,8 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
     num_losses = 4 if inverse else 3  # + data loss
     weights = torch.ones(num_losses, device=Config.device) / num_losses
 
-    # MOO-VARI 历史损失缓冲区
     loss_history_buffer = []
 
-    # GradNorm restoring force 初始损失
     gn_initial_losses = None
 
     def update_weights_smooth(prev_weights, optimal_weights, beta=0.9):
@@ -722,12 +638,10 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
             loss.backward()
             optimizer.step()
         elif strategy == "pcgrad":
-            # PCGrad: 等权重 + 仅角度投影（不做 OAW + 不做幅度均衡）
             apply_pcgrad(losses, net)
             optimizer.step()
             loss = sum(losses).detach()
         elif strategy == "moo_vari":
-            # MOO-VARI: 每 moo_freq 步用 NSGA-II+VARI 更新权重
             if epoch > 0 and epoch % Config.moo_freq == 0:
                 weights = moo_vari_update(net, inverse, X_f, X_bc, X_ic,
                                           X_data, u_data,
@@ -738,9 +652,7 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
             loss.backward()
             optimizer.step()
         elif strategy == "gradnorm":
-            # GradNorm: 基于梯度范数平衡的自适应权重
             if epoch >= Config.gn_update_after and epoch % Config.gn_update_freq == 0:
-                # 初始损失：首次记录，后续可选 EMA 平滑（与原 GradNormLossWeighter 一致）
                 if gn_initial_losses is None:
                     gn_initial_losses = torch.stack([l.detach() for l in losses])
                 elif Config.gn_alpha > 0 and Config.gn_initial_losses_decay < 1.0:
@@ -751,7 +663,6 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
                                          Config.gn_lr, Config.gn_alpha)
                 if epoch % Config.print_step == 0 or Config.DEBUG_MODE:
                     print(f"  [GradNorm] Updated weights: {weights.detach().cpu().numpy()}")
-            # 标准 backward（用 GradNorm 权重加权求和）
             loss = sum(w * l for w, l in zip(weights, losses))
             loss.backward()
             optimizer.step()
@@ -776,7 +687,6 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 
-        # MOO-VARI 记录历史损失
         if strategy == "moo_vari":
             loss_vals = [l.detach().item() for l in losses]
             loss_history_buffer.append(loss_vals)
@@ -806,9 +716,7 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
     adam_time = time.time() - start
     print(f"\nAdam finished. Time: {adam_time:.2f} sec")
 
-    # ==========================================
-    # Phase 2: L-BFGS
-    # ==========================================
+
     if Config.lbfgs_max_iter > 0:
         print("\n" + "=" * 60)
         print("Stage 2: L-BFGS Fine-tuning")
@@ -904,13 +812,10 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
         print(f"  --> Iterations to 1e-3: Did not reach 1e-3. Final={l2_final:.3e}")
     print("=" * 60)
 
-    # ==========================================
-    # 📈 绘图
-    # ==========================================
+
     print("\nGenerating Plots...")
     plot_name = {"standard": "PINN (Uniform)", "pcgrad": "PCGrad", "bi_gs": "Bi-GS-PINN", "moo_vari": "MOO-VARI-PINN", "gradnorm": "GradNorm"}[strategy]
 
-    # 图1：Loss + L2 收敛曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(history_iter, history_loss, 'b-', label='Total Loss', linewidth=1.5)
@@ -938,7 +843,6 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
     plt.savefig(os.path.join(current_save_dir, "Convergence_Curve.png"), dpi=300)
     plt.close()
 
-    # 图2：x-y 截面热力图（t=0, T/2, T）
     snap_indices = [0, len(t_ref) // 2, len(t_ref) - 1]
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
@@ -994,7 +898,6 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
         f.write(f"L2 = {l2_final:.6e}\n")
 
     print(f"Plots saved to {current_save_dir}")
-    # 反问题：保存最终参数估计
     rho_est = net.rho_param.item() if inverse else None
     if inverse:
         print(f"\n[Table 3: Parameter Estimation]")
@@ -1004,9 +907,7 @@ def main(strategy="standard", inverse=False, seed=0, timestamp=""):
 
     return l2_final, iter_to_1e3, rho_est
 
-# ==============================================
-# 🚀 入口
-# ==============================================
+
 if __name__ == "__main__":
     if Config.RUN_STRATEGY == "all":
         strategies_to_test = ["standard", "pcgrad", "bi_gs", "moo_vari", "gradnorm"]
