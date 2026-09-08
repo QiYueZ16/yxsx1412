@@ -2,18 +2,6 @@
 # plot_3DMMS_seed8_weights.py
 # 3D + time MMS - loss weight evolution (paper style)
 # Seed = 8
-#
-# Data source:
-#   plt/3DMMS/results/{strategy_folder}/seed_8/weight_history.npz
-#   keys: iteration, weights (n_points, 5)  [λ_Ru, λ_Rv, λ_Rc, λ_BC, λ_IC]
-#
-# Figure: 1x2 subplots
-#   (a) Bi-GS-PINN  - adaptive OAW weights, sum = 1
-#   (b) PINN        - standard, constant equal weights [0.2, 0.2, 0.2, 0.2, 0.2]
-#
-# Adam phase only (iterations 0..15000; training config A15000_L10000),
-# dashed divider at x = 15000 (Adam -> L-BFGS boundary).
-# Style: linear y, grid, frameoff legend.
 # Output: 3DMMS_seed{SEED}_weight_evolution.pdf / .png
 # ============================================================
 
