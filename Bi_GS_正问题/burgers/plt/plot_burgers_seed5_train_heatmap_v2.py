@@ -2,23 +2,6 @@
 # plot_burgers_seed5_train_heatmap_v2.py
 # Burgers equation - training-grid heatmap (paper style)
 # Seed = 5
-# v2: 与 v1 相比 - 画布加宽 (13 x 19), 列间距拉大 (wspace 0.5),
-#     子图保持正方形且更大, 列间距视觉上更宽 (参考 Fisher 图的宽松感)
-#
-# Evaluation is IDENTICAL to the training code
-# (plt/burgers/plt_burgers_cur.py, Burgers_Heatmap section):
-#   - grid: the .mat's original points, 256 (x) x 100 (t)
-#   - reference: the raw usol from burgers_shock.mat (no spline)
-#   - prediction: model evaluated on the same .mat points
-#   - error: |pred - usol|
-#   - per-panel independent color scale (like training)
-#
-# Layout: 5 rows (methods) x 3 columns
-#               Reference        Prediction       Absolute Error
-# PINN          [u_ref (x,t)]    [u_pred (x,t)]   [|u_pred-u_ref|]
-# ...
-# Row labels on the LEFT (unified with the paper's other figures).
-#
 # Output: burgers_seed{SEED}_train_heatmap.pdf / .png
 # ============================================================
 
