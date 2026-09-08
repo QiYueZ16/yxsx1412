@@ -2,18 +2,6 @@
 # plot_Fisher-KPP_seed4_compare.py
 # 2D Fisher-KPP - loss / L2 convergence comparison (paper style)
 # Seed = 4
-#
-# Data source:
-#   plt/Fisher-KPP/results/{strategy_folder}/seed_4/training_history.npz
-#   keys: iteration, loss, l2, strategy, seed, adam_epochs, lbfgs_max_iter
-#
-# Figures (all png 300dpi + pdf):
-#   1) Fisher-KPP_seed{SEED}_loss_l2_compare   (1x2 subplots: Loss | L2)
-#   2) Fisher-KPP_seed{SEED}_loss_compare      (Loss only)
-#   3) Fisher-KPP_seed{SEED}_l2_compare        (L2 only)
-#
-# Style: log y axes, xlim [0, 15000], dashed divider at Adam->L-BFGS,
-#        tab10 colors, frameoff legend (paper style).
 # ============================================================
 
 
